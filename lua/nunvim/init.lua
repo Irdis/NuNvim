@@ -204,8 +204,9 @@ nunvim.traverse_namespace = function(node, info)
         if nunvim.cursor_row < start_row or nunvim.cursor_row > end_row then
             return
         end
-        info.class = nunvim.get_identifier(node, "name")
-        if nunvim.cursor_row == start_row then
+        local identifier_row
+        info.class, identifier_row = nunvim.get_identifier(node, "name")
+        if nunvim.cursor_row == identifier_row then
             info.complete = true
             info.success = true
             return
@@ -259,9 +260,9 @@ end
 
 nunvim.get_identifier = function(node, node_name)
     for child, child_name in node:iter_children() do
-        if node_name == child_name and (child:type() == "identifier" or 
-            child:type() == "qualified_name") then
-            return vim.treesitter.get_node_text(child, nunvim.buf)
+        if node_name == child_name then
+            local start_row = child:range()
+            return vim.treesitter.get_node_text(child, nunvim.buf), start_row
         end
     end
     return nil
