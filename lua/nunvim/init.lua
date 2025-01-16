@@ -172,7 +172,7 @@ end
 
 nunvim.traverse_root = function(node, info)
     if node:type() == "file_scoped_namespace_declaration" then 
-        info.namespace = nunvim.get_identifier(node)
+        info.namespace = nunvim.get_identifier(node, "name")
         info.file_scoped_namespace = true
     elseif node:type() == "namespace_declaration" then
         local start_row, _, end_row, _ = node:range()
@@ -180,7 +180,7 @@ nunvim.traverse_root = function(node, info)
             return
         end
 
-        info.namespace = nunvim.get_identifier(node)
+        info.namespace = nunvim.get_identifier(node, "name")
         info.file_scoped_namespace = false
 
         nunvim.traverse_namespace(node, info)
@@ -204,7 +204,7 @@ nunvim.traverse_namespace = function(node, info)
         if nunvim.cursor_row < start_row or nunvim.cursor_row > end_row then
             return
         end
-        info.class = nunvim.get_identifier(node)
+        info.class = nunvim.get_identifier(node, "name")
         if nunvim.cursor_row == start_row then
             info.complete = true
             info.success = true
@@ -229,7 +229,7 @@ nunvim.traverse_class = function(node, info)
             return
         end
         if nunvim.has_test_attributes(node) then 
-            info.method = nunvim.get_identifier(node)
+            info.method = nunvim.get_identifier(node, "name")
             info.success = true
         end
         info.complete = true
@@ -247,7 +247,7 @@ nunvim.has_test_attributes = function(node)
     for attr_lst in node:iter_children() do
         if attr_lst:type() == "attribute_list" then
             for attr in attr_lst:iter_children() do
-                local identifier = nunvim.get_identifier(attr)
+                local identifier = nunvim.get_identifier(attr, "name")
                 if identifier == "Test" or identifier == "TestCase" then 
                     return true
                 end
@@ -257,9 +257,10 @@ nunvim.has_test_attributes = function(node)
     return false
 end
 
-nunvim.get_identifier = function(node)
-    for child in node:iter_children() do
-        if child:type() == "identifier" or child:type() == "qualified_name" then
+nunvim.get_identifier = function(node, node_name)
+    for child, child_name in node:iter_children() do
+        if node_name == child_name and (child:type() == "identifier" or 
+            child:type() == "qualified_name") then
             return vim.treesitter.get_node_text(child, nunvim.buf)
         end
     end
