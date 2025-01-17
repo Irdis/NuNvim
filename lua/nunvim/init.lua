@@ -1,7 +1,6 @@
 local M = {}
 
 M.nunitconsole = "nunit3-console"
-M.configuration = "Debug"
 
 M.setup = function(config) 
     if not config then
@@ -13,26 +12,30 @@ M.setup = function(config)
     end
 end
 
-M.run_release = function()
-    M.run("Release")
+M.run_release = function(options)
+    M.run("Release", options)
 end
 
-M.run_debug = function()
-    M.run("Debug")
+M.run_debug = function(options)
+    M.run("Debug", options)
 end
 
-M.run = function(configuration)
+M.run = function(configuration, options)
+    if not options then
+        options = {}
+    end
+
     M.buf = vim.api.nvim_get_current_buf()
     M.cursor_row = M.get_cursor_row()
-    if configuration then 
-        M.configuration = configuration
-    end
-    M.nunitconsole = "c:\\Distr\\NUnit.Console-3.19.0\\bin\\net462\\nunit3-console"
 
-    local location = M.get_location()
-    if not location.success then
-        M.log("Missing a testable thing (class/method) under the cursor")
-        return
+    local location
+    if not options.run_all then
+        location = M.get_location()
+
+        if not location.success then
+            M.log("Missing a testable thing (class/method) under the cursor")
+            return
+        end
     end
 
     local file_path = vim.api.nvim_buf_get_name(M.buf)
@@ -43,25 +46,42 @@ M.run = function(configuration)
         return
     end
 
-    local dll = M.get_dll(csproj, M.configuration)
+    local dll = M.get_dll(csproj, configuration)
     if not dll then 
         M.log("Unable to locate .dll")
         return
     end
 
-    local cmd = M.build_cmd(location, M.nunitconsole, dll)
-    vim.cmd(cmd)
+    local cmd = M.build_cmd(location, M.nunitconsole, dll, options.run_all)
+    if options.run_outside then 
+        M.run_in_term(cmd)
+    else
+        M.run_in_message(cmd)
+    end
 end
 
 M.log = function(msg)
     print("[nunvim] " .. msg)
 end
 
-M.build_cmd = function(location, nunit_path, dll_path)
-    local cmd = "!" .. nunit_path
+M.run_in_term = function(cmd)
+    local b = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_set_current_buf(b)
+    local ch = vim.fn.termopen('cmd');
+    vim.api.nvim_chan_send(ch, cmd .. '\r')
+end
+
+M.run_in_message = function(cmd)
+    vim.cmd("!" .. cmd)
+end
+
+M.build_cmd = function(location, nunit_path, dll_path, run_all)
+    local cmd = nunit_path
 
     cmd = cmd .. " " .. dll_path
-    cmd = cmd .. " " .. M.build_cmd_location(location)
+    if not run_all then
+        cmd = cmd .. " " .. M.build_cmd_location(location)
+    end
     cmd = cmd .. " " .. "--noh"
     cmd = cmd .. " " .. "--noresult"
     cmd = cmd .. " " .. "--labels=BeforeAndAfter"
