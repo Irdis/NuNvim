@@ -27,7 +27,7 @@ nunvim.run = function(configuration)
     if configuration then 
         nunvim.configuration = configuration
     end
-    nunvim.nunitconsole = "c:\\Distr\\NUnit.Console-3.19.0\\bin\\net8.0\\nunit3-console"
+    nunvim.nunitconsole = "c:\\Distr\\NUnit.Console-3.19.0\\bin\\net462\\nunit3-console"
 
     local location = nunvim.get_location()
     if not location.success then
@@ -64,6 +64,7 @@ nunvim.build_cmd = function(location, nunit_path, dll_path)
     cmd = cmd .. " " .. nunvim.build_cmd_location(location)
     cmd = cmd .. " " .. "--noh"
     cmd = cmd .. " " .. "--noresult"
+    cmd = cmd .. " " .. "--labels=BeforeAndAfter"
 
     return cmd
 end
