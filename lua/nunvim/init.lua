@@ -2,12 +2,12 @@ local M = {}
 
 M.nunitconsole = "nunit3-console"
 
-M.setup = function(config) 
+M.setup = function(config)
     if not config then
         return
     end
 
-    if config.nunitconsole then 
+    if config.nunitconsole then
         M.nunitconsole = config.nunitconsole
     end
 end
@@ -30,7 +30,7 @@ M.run = function(configuration, options)
 
     local location
     if not options.run_all then
-        location = M.get_location()
+        location = M.get_location(M.buf)
 
         if not location.success then
             M.log("Missing a testable thing (class/method) under the cursor")
@@ -41,19 +41,19 @@ M.run = function(configuration, options)
     local file_path = vim.api.nvim_buf_get_name(M.buf)
     local root_folder = vim.loop.cwd()
     local csproj = M.get_csproj(file_path, root_folder)
-    if not csproj then 
+    if not csproj then
         M.log("Unable to locate .csproj")
         return
     end
 
     local dll = M.get_dll(csproj, configuration)
-    if not dll then 
+    if not dll then
         M.log("Unable to locate .dll")
         return
     end
 
     local cmd = M.build_cmd(location, M.nunitconsole, dll, options.run_all)
-    if options.run_outside then 
+    if options.run_outside then
         M.run_in_term(cmd)
     else
         M.run_in_message(cmd)
@@ -93,14 +93,14 @@ M.build_cmd_location = function(location)
     local cmd = "--test="
     cmd = cmd .. location.namespace
     cmd = cmd .. "." .. location.class
-    if location.method then 
+    if location.method then
         cmd = cmd .. "." .. location.method
     end
     return cmd
 end
 
 M.get_cursor_row = function()
-    local row = unpack(vim.api.nvim_win_get_cursor(0))
+    local row = table.unpack(vim.api.nvim_win_get_cursor(0))
     return row - 1
 end
 
@@ -131,7 +131,7 @@ M.look_for_dll_int = function(dll_name, directory)
 
         if not name then break end
 
-        if type == "file" and string.lower(name) == dll_name then 
+        if type == "file" and string.lower(name) == dll_name then
             return directory .. "\\" .. name
         elseif type == "directory" then
             table.insert(inner_dirs, directory .. "\\" .. name)
@@ -140,7 +140,7 @@ M.look_for_dll_int = function(dll_name, directory)
 
     for _, inner_dir in ipairs(inner_dirs) do
         local found = M.look_for_dll_int(dll_name, inner_dir)
-        if found then 
+        if found then
             return found
         end
     end
@@ -166,18 +166,18 @@ M.get_csproj = function(location, root)
 
         if not name then break end
 
-        if type == "file" and string.match(name, "%.csproj$") then 
+        if type == "file" and string.match(name, "%.csproj$") then
             return directory .. "\\" .. name
         end
     end
-    if directory == root then 
+    if directory == root then
         M.log("Unable to locate .csproj")
         return nil
     end
     return M.get_csproj(directory, root)
 end
 
-M.get_location = function()
+M.get_location = function(buf)
     local parser = vim.treesitter.get_parser(buf, "c_sharp")
     local tree = parser:parse()[1]
     local root = tree:root()
@@ -192,7 +192,7 @@ M.get_location = function()
 end
 
 M.traverse_root = function(node, info)
-    if node:type() == "file_scoped_namespace_declaration" then 
+    if node:type() == "file_scoped_namespace_declaration" then
         info.namespace = M.get_identifier(node, "name")
         info.file_scoped_namespace = true
     elseif node:type() == "namespace_declaration" then
@@ -205,11 +205,11 @@ M.traverse_root = function(node, info)
         info.file_scoped_namespace = false
 
         M.traverse_namespace(node, info)
-    else 
+    else
         for child in node:iter_children() do
             M.traverse_root(child, info)
-            if info.complete then 
-                return 
+            if info.complete then
+                return
             end
 
             if info.file_scoped_namespace then
@@ -234,11 +234,11 @@ M.traverse_namespace = function(node, info)
         end
         M.traverse_class(node, info)
         info.complete = true
-    else 
+    else
         for child in node:iter_children() do
             M.traverse_namespace(child, info)
-            if info.complete then 
-                return 
+            if info.complete then
+                return
             end
         end
     end
@@ -250,16 +250,16 @@ M.traverse_class = function(node, info)
         if M.cursor_row < start_row or M.cursor_row > end_row then
             return
         end
-        if M.has_test_attributes(node) then 
+        if M.has_test_attributes(node) then
             info.method = M.get_identifier(node, "name")
             info.success = true
         end
         info.complete = true
-    else 
+    else
         for child in node:iter_children() do
             M.traverse_class(child, info)
-            if info.complete then 
-                return 
+            if info.complete then
+                return
             end
         end
     end
@@ -270,7 +270,7 @@ M.has_test_attributes = function(node)
         if attr_lst:type() == "attribute_list" then
             for attr in attr_lst:iter_children() do
                 local identifier = M.get_identifier(attr, "name")
-                if identifier == "Test" or identifier == "TestCase" then 
+                if identifier == "Test" or identifier == "TestCase" then
                     return true
                 end
             end
