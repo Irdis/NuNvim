@@ -100,7 +100,7 @@ M.build_cmd_location = function(location)
 end
 
 M.get_cursor_row = function()
-    local row = table.unpack(vim.api.nvim_win_get_cursor(0))
+    local row = unpack(vim.api.nvim_win_get_cursor(0))
     return row - 1
 end
 
