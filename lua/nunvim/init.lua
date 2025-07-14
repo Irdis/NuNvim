@@ -66,6 +66,7 @@ end
 
 M.run_in_term = function(cmd)
     local b = vim.api.nvim_create_buf(true, true)
+    vim.cmd('split')
     vim.api.nvim_set_current_buf(b)
     local ch = vim.fn.termopen('cmd');
     vim.api.nvim_chan_send(ch, cmd .. '\r')
