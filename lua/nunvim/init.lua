@@ -270,7 +270,9 @@ M.has_test_attributes = function(node)
         if attr_lst:type() == "attribute_list" then
             for attr in attr_lst:iter_children() do
                 local identifier = M.get_identifier(attr, "name")
-                if identifier == "Test" or identifier == "TestCase" then
+                if identifier == "Test" or
+                    identifier == "TestCase" or
+                    identifier == "TestCaseSource" then
                     return true
                 end
             end
