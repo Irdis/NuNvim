@@ -60,15 +60,19 @@ M.run = function(configuration, options)
     end
 end
 
-M.log = function(msg)
-    print("[nunvim] " .. msg)
-end
-
 M.run_in_term = function(cmd)
     local b = vim.api.nvim_create_buf(true, true)
     vim.api.nvim_set_current_buf(b)
-    local ch = vim.fn.termopen('cmd');
+
+    local ch = vim.fn.termopen(M.term());
     vim.api.nvim_chan_send(ch, cmd .. '\r')
+end
+
+M.term = function ()
+    if M.is_linux() then
+        return 'bash'
+    end
+    return 'cmd'
 end
 
 M.run_in_message = function(cmd)
@@ -108,7 +112,7 @@ M.get_dll = function(csproj, configuration)
     local csproj_folder = vim.fn.fnamemodify(csproj, ":h")
     local csproj_name_noext = vim.fn.fnamemodify(csproj, ":t:r")
     local dll_name = csproj_name_noext .. ".dll"
-    local initial_folder = csproj_folder .. "\\bin\\" .. configuration
+    local initial_folder = M.path_combine(csproj_folder, "bin", configuration)
     local dll_path = M.look_for_dll(dll_name, initial_folder)
 
     return dll_path
@@ -132,9 +136,9 @@ M.look_for_dll_int = function(dll_name, directory)
         if not name then break end
 
         if type == "file" and string.lower(name) == dll_name then
-            return directory .. "\\" .. name
+            return M.path_combine(directory, name)
         elseif type == "directory" then
-            table.insert(inner_dirs, directory .. "\\" .. name)
+            table.insert(inner_dirs, M.path_combine(directory, name))
         end
     end
 
@@ -146,7 +150,6 @@ M.look_for_dll_int = function(dll_name, directory)
     end
     return nil
 end
-
 
 M.get_csproj = function(location, root)
     local directory = vim.fn.fnamemodify(location, ":h")
@@ -167,7 +170,7 @@ M.get_csproj = function(location, root)
         if not name then break end
 
         if type == "file" and string.match(name, "%.csproj$") then
-            return directory .. "\\" .. name
+            return M.path_combine(directory, name)
         end
     end
     if directory == root then
@@ -291,9 +294,23 @@ M.get_identifier = function(node, node_name)
     return nil
 end
 
+M.path_combine = function(...)
+    local sep = M.is_linux() and "/" or "\\"
+    local args = {...}
+    return table.concat(args, sep)
+end
+
+M.is_linux = function ()
+    local os_name = vim.loop.os_uname().sysname
+    return os_name == "Linux"
+end
 
 M.reload = function()
     package.loaded["nunvim"] = nil
+end
+
+M.log = function(msg)
+    print("[nunvim] " .. msg)
 end
 
 return M
