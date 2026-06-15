@@ -1,6 +1,12 @@
 local M = {}
 
+M.xunitconsole = "xunit-console"
 M.nunitconsole = "nunit3-console"
+
+local TestFramework = {
+    xunit = 1,
+    nunit = 2
+}
 
 M.setup = function(config)
     if not config then
@@ -9,6 +15,9 @@ M.setup = function(config)
 
     if config.nunitconsole then
         M.nunitconsole = config.nunitconsole
+    end
+    if config.xunitconsole then
+        M.xunitconsole = config.xunitconsole
     end
 end
 
@@ -52,7 +61,13 @@ M.run = function(configuration, options)
         return
     end
 
-    local cmd = M.build_cmd(location, M.nunitconsole, dll, options.run_all)
+    local test_framework = M.get_test_framework(csproj, location)
+    if not test_framework then
+        M.log("Unable to determine the test framework")
+        return
+    end
+
+    local cmd = M.build_cmd(location, test_framework, dll, options.run_all)
     if options.run_outside then
         M.run_in_term(cmd)
     else
@@ -75,16 +90,67 @@ M.term = function ()
     return 'cmd'
 end
 
+M.get_test_framework = function(csproj, location)
+    if not location or not location.test_framework then
+        if M.file_contains(csproj, "xunit") then
+            return TestFramework.xunit
+        end
+        if M.file_contains(csproj, "NUnit") then
+            return TestFramework.nunit
+        end
+        return nil
+    end
+    return location.test_framework
+end
+
+M.file_contains = function(path, needle)
+    for line in io.lines(path) do
+        if line:find(needle, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 M.run_in_message = function(cmd)
     vim.cmd("!" .. cmd)
 end
 
-M.build_cmd = function(location, nunit_path, dll_path, run_all)
-    local cmd = nunit_path
+M.build_cmd = function(location, test_framework, dll_path, run_all)
+    if test_framework == TestFramework.nunit then
+        return M.build_nunit_cmd(location, dll_path, run_all)
+    end
+    return M.build_xunit_cmd(location, dll_path, run_all)
+end
+
+M.build_xunit_cmd = function (location, dll_path, run_all)
+    local cmd = M.xunitconsole
 
     cmd = cmd .. " " .. dll_path
     if not run_all then
-        cmd = cmd .. " " .. M.build_cmd_location(location)
+        cmd = cmd .. " " .. M.build_xunit_cmd_location(location)
+    end
+    cmd = cmd .. " " .. "-noLogo"
+    -- cmd = cmd .. " " .. "-noColor"
+    cmd = cmd .. " " .. "-reporter verbose"
+
+    return cmd
+end
+
+M.build_xunit_cmd_location = function(location)
+    local class_path = location.namespace .. "." .. location.class
+    if location.method then
+        return "-method \"" .. class_path .. "." .. location.method .. "\""
+    end
+    return "-class \"" .. class_path .. "\""
+end
+
+M.build_nunit_cmd = function (location, dll_path, run_all)
+    local cmd = M.nunitconsole
+
+    cmd = cmd .. " " .. dll_path
+    if not run_all then
+        cmd = cmd .. " " .. M.build_nunit_cmd_location(location)
     end
     cmd = cmd .. " " .. "--noh"
     cmd = cmd .. " " .. "--noresult"
@@ -93,7 +159,7 @@ M.build_cmd = function(location, nunit_path, dll_path, run_all)
     return cmd
 end
 
-M.build_cmd_location = function(location)
+M.build_nunit_cmd_location = function(location)
     local cmd = "--test="
     cmd = cmd .. location.namespace
     cmd = cmd .. "." .. location.class
@@ -253,7 +319,7 @@ M.traverse_class = function(node, info)
         if M.cursor_row < start_row or M.cursor_row > end_row then
             return
         end
-        if M.has_test_attributes(node) then
+        if M.has_test_attributes(node, info) then
             info.method = M.get_identifier(node, "name")
             info.success = true
         end
@@ -268,7 +334,7 @@ M.traverse_class = function(node, info)
     end
 end
 
-M.has_test_attributes = function(node)
+M.has_test_attributes = function(node, info)
     for attr_lst in node:iter_children() do
         if attr_lst:type() == "attribute_list" then
             for attr in attr_lst:iter_children() do
@@ -276,6 +342,12 @@ M.has_test_attributes = function(node)
                 if identifier == "Test" or
                     identifier == "TestCase" or
                     identifier == "TestCaseSource" then
+                    info.test_framework = TestFramework.nunit
+                    return true
+                end
+                if identifier == "Fact" or
+                    identifier == "Theory" then
+                    info.test_framework = TestFramework.xunit
                     return true
                 end
             end
